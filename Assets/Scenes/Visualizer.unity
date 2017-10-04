@@ -209,7 +209,7 @@ MonoBehaviour:
   lineMaterial: {fileID: 2100000, guid: 91035448860ba4e708919485c73f7edc, type: 2}
   surfaceMaterial: {fileID: 2100000, guid: 5ce51318bbfb1466188b929a68a6bd3a, type: 2}
   time: 0
-  timeScale: 10
+  timeScale: 100
   timeSlider: {fileID: 873890260}
   timeLabel: {fileID: 650352532}
   scoreLabel: {fileID: 1238280067}
@@ -348,7 +348,7 @@ RectTransform:
   m_AnchorMin: {x: 0.3, y: 1}
   m_AnchorMax: {x: 0.3, y: 1}
   m_AnchoredPosition: {x: 0, y: 10}
-  m_SizeDelta: {x: 160, y: 30}
+  m_SizeDelta: {x: 200, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &650352532
 MonoBehaviour:

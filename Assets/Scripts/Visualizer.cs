@@ -32,19 +32,64 @@ public class Visualizer : MonoBehaviour {
 
 		timeSlider.onValueChanged.AddListener(value => time = value);
 
-		input = new InputData(File.OpenText(Application.dataPath + "/../test.in").ReadToEnd());
-		submission = new SubmissionData(input, File.OpenText(Application.dataPath + "/../test.sub").ReadToEnd());
+		input = new InputData(File.OpenText(Application.dataPath + "/../tests/paris.txt").ReadToEnd());
+		//submission = new SubmissionData(input, File.OpenText(Application.dataPath + "/../test.sub").ReadToEnd());
+		submission = new SubmissionData(input, GenerateRandomWalk(input));
+		Debug.Log("Maximum possible score: " + MaximumPossibleScore(input));
+		Debug.Log("Maximum possible continous score: " + MaximumPossibleContinousScore(input));
+		Debug.Log("Optimal time fraction to cover: " + OptimalTimeToCover(input));
 
 		timeSlider.minValue = 0;
 		timeSlider.maxValue = input.timeLimit;
 		canvas = FindObjectOfType<Canvas>();
 		cam = GetComponent<Camera>();
 		cam.transform.position = input.bounds.center - Vector3.forward;
-		cam.orthographicSize = input.bounds.extents.magnitude * 1.2f;
+		cam.orthographicSize = input.bounds.extents.magnitude * 1.1f;
+	}
+
+	static float MaximumPossibleContinousScore (InputData input) {
+		return input.cars * (input.timeLimit * (float)input.streets.Sum(s => s.length))/input.streets.Sum(s => s.duration);
+	}
+
+	static float OptimalTimeToCover (InputData input) {
+		return input.streets.Sum(s => s.duration) / (float)(input.cars * input.timeLimit);
+	}
+
+	static int MaximumPossibleScore (InputData input) {
+		return input.streets.Sum(s => s.length);
+	}
+
+	static string GenerateRandomWalk (InputData input) {
+		StringBuilder output = new StringBuilder();
+		bool[] taken = new bool[input.streets.Length];
+		output.AppendLine(input.cars.ToString());
+		for (int i = 0; i < input.cars; i++) {
+			int pos = input.startingJunction;
+			int time = 0;
+			List<int> trace = new List<int>();
+			while(true) {
+				trace.Add(pos);
+				var possibleEdges = input.outEdges[pos].Where(e => !taken[e.index]).ToList();
+				if (possibleEdges.Count == 0) possibleEdges = input.outEdges[pos];
+
+				// It's a trap!
+				if (possibleEdges.Count == 0) break;
+
+				var edge = possibleEdges[Random.Range(0, possibleEdges.Count)];
+				time += edge.duration;
+				if (time > input.timeLimit) break;
+				taken[edge.index] = true;
+				pos = edge.to;
+			}
+
+			output.AppendLine(trace.Count.ToString());
+			foreach (var p in trace) output.AppendLine(p.ToString());
+		}
+		return output.ToString();
 	}
 
 	void Update () {
-		timeLabel.text = time.ToString("Time: 0");
+		timeLabel.text = string.Format("Time (x{0:0}): {1:0}", timeScale, time);
 		timeSlider.value = time;
 		scoreLabel.text = submission.ScoreByTime(time).ToString("Score: 0");
 		time += Time.deltaTime * timeScale;
@@ -70,14 +115,23 @@ public class Visualizer : MonoBehaviour {
 		return result;
 	}
 
-	void Render () {
-		var builder = new RetainedGizmos.Builder();
-
-		if (submission != null) {
+	void RenderBackground () {
+		var hasher = new RetainedGizmos.Hasher();
+		hasher.AddHash(input.GetHashCode());
+		if (!gizmos.Draw(hasher)) {
+			Debug.Log("Redrawing background");
+			var builder = new RetainedGizmos.Builder();
 			foreach (var street in input.streets) {
 				builder.DrawLine(input.junctions[street.from], input.junctions[street.to], Color.white);
 			}
+			builder.Submit(gizmos, hasher);
+		}
+	}
 
+	void Render () {
+		RenderBackground();
+		var builder = new RetainedGizmos.Builder();
+		if (submission != null) {
 			for (int i = 0; i < submission.cars.Length; i++) {
 				var car = submission.cars[i];
 				var nextIndex = car.NextPathIndex(time);
@@ -90,7 +144,13 @@ public class Visualizer : MonoBehaviour {
 				var currentPos = car.Sample(time);
 				builder.DrawLine(lastPos, currentPos, Color.green);
 				//builder.DrawWireCube(GraphTransform.identityTransform, new Bounds((Vector3)currentPos + Vector3.forward*0.1f, Vector3.one*0.1f), Color.red);
-				builder.DrawCircle((Vector3)currentPos + Vector3.forward*0.1f, 0.1f, Color.red);
+			}
+			for (int i = 0; i < submission.cars.Length; i++) {
+				var car = submission.cars[i];
+				var currentPos = car.Sample(time);
+				builder.DrawCircle((Vector3)currentPos + Vector3.forward*0.1f, 0.0004f, Color.red);
+				builder.DrawCircle((Vector3)currentPos + Vector3.forward*0.1f, 0.0003f, Color.red);
+				builder.DrawCircle((Vector3)currentPos + Vector3.forward*0.1f, 0.0002f, Color.red);
 			}
 
 			var rect = GetScreenCoordinates(timeSlider.GetComponent<RectTransform>());
@@ -100,8 +160,13 @@ public class Visualizer : MonoBehaviour {
 				.Select(v => new Vector2(v.Key / (float)input.timeLimit, v.Value / (float)submission.score))
 				.Select(v => cam.ScreenToWorldPoint((Vector3)Rect.NormalizedToPoint(rect, v) + Vector3.forward))
 				.ToArray();
-			for (int i = 0; i < normalizedScores.Length - 1; i++) {
-				builder.DrawLine(normalizedScores[i], normalizedScores[i+1], Color.white);
+			var prev = 0;
+			float threshold = 4 * cam.orthographicSize / Screen.width;
+			for (int i = 1; i < normalizedScores.Length; i++) {
+				if ((normalizedScores[prev] - normalizedScores[i]).sqrMagnitude > threshold*threshold || i == normalizedScores.Length - 1) {
+					builder.DrawLine(normalizedScores[prev], normalizedScores[i], Color.white);
+					prev = i;
+				}
 			}
 		}
 
