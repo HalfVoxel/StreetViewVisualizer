@@ -148,9 +148,9 @@ public class Visualizer : MonoBehaviour {
 			for (int i = 0; i < submission.cars.Length; i++) {
 				var car = submission.cars[i];
 				var currentPos = car.Sample(time);
-				builder.DrawCircle((Vector3)currentPos + Vector3.forward*0.1f, 0.0004f, Color.red);
-				builder.DrawCircle((Vector3)currentPos + Vector3.forward*0.1f, 0.0003f, Color.red);
-				builder.DrawCircle((Vector3)currentPos + Vector3.forward*0.1f, 0.0002f, Color.red);
+				builder.DrawCircle((Vector3)currentPos + Vector3.forward*0.1f, 0.004f, Color.red);
+				builder.DrawCircle((Vector3)currentPos + Vector3.forward*0.1f, 0.003f, Color.red);
+				builder.DrawCircle((Vector3)currentPos + Vector3.forward*0.1f, 0.002f, Color.red);
 			}
 
 			var rect = GetScreenCoordinates(timeSlider.GetComponent<RectTransform>());
@@ -227,7 +227,7 @@ public class Visualizer : MonoBehaviour {
 			var scale = 1 / bounds.size.magnitude;
 			for (int i = 0; i < junctions.Length; i++) {
 				var lat = junctions[i].x;
-				junctions[i] = (junctions[i] - (Vector2)center);
+				junctions[i] = (junctions[i] - (Vector2)center) * scale;
 				var y = junctions[i].x;
 				var x = junctions[i].y * Mathf.Cos(lat*Mathf.Deg2Rad);
 				junctions[i] = new Vector2(x,y);
