@@ -14,9 +14,11 @@ public class Visualizer : MonoBehaviour {
 	public float time = 0;
 	public float timeScale = 10;
 	public Slider timeSlider;
+	public Slider timeScaleSlider;
 	public Text timeLabel;
 	public Text scoreLabel;
-
+	int timeDirection = 1;
+	bool paused = false;
 	RetainedGizmos gizmos;
 	Camera cam;
 	Canvas canvas;
@@ -32,17 +34,28 @@ public class Visualizer : MonoBehaviour {
 
 		timeSlider.onValueChanged.AddListener(value => time = value);
 
-		input = new InputData(File.OpenText(Application.dataPath + "/../tests/paris.txt").ReadToEnd());
-		//submission = new SubmissionData(input, File.OpenText(Application.dataPath + "/../test.sub").ReadToEnd());
-		submission = new SubmissionData(input, GenerateRandomWalk(input));
+		timeSlider.minValue = 0;
+
+		timeScaleSlider.minValue = 0;
+		timeScaleSlider.maxValue = 4;
+		timeScaleSlider.wholeNumbers = true;
+		timeScaleSlider.onValueChanged.AddListener(v => timeScale = paused ? 0 : (int)(timeDirection*Mathf.Pow(10, v)));
+		timeScaleSlider.value = 2;
+
+		canvas = FindObjectOfType<Canvas>();
+		cam = GetComponent<Camera>();
+		Load();
+	}
+
+	void Load () {
+		input = new InputData(File.OpenText(Application.dataPath + "/../tests/campus.txt").ReadToEnd());
+		submission = new SubmissionData(input, File.OpenText(Application.dataPath + "/../test2.sub").ReadToEnd());
+		timeSlider.maxValue = input.timeLimit;
+		//submission = new SubmissionData(input, GenerateRandomWalk(input));
+		Debug.Log("Score: " + submission.score);
 		Debug.Log("Maximum possible score: " + MaximumPossibleScore(input));
 		Debug.Log("Maximum possible continous score: " + MaximumPossibleContinousScore(input));
 		Debug.Log("Optimal time fraction to cover: " + OptimalTimeToCover(input));
-
-		timeSlider.minValue = 0;
-		timeSlider.maxValue = input.timeLimit;
-		canvas = FindObjectOfType<Canvas>();
-		cam = GetComponent<Camera>();
 		cam.transform.position = input.bounds.center - Vector3.forward;
 		cam.orthographicSize = input.bounds.extents.magnitude * 1.1f;
 	}
@@ -89,10 +102,29 @@ public class Visualizer : MonoBehaviour {
 	}
 
 	void Update () {
-		timeLabel.text = string.Format("Time (x{0:0}): {1:0}", timeScale, time);
-		timeSlider.value = time;
-		scoreLabel.text = submission.ScoreByTime(time).ToString("Score: 0");
-		time += Time.deltaTime * timeScale;
+		if (Input.GetKeyDown(KeyCode.R)) {
+			Load();
+		}
+
+		if (Input.GetKeyDown(KeyCode.Space)) {
+			paused = !paused;
+			timeScaleSlider.onValueChanged.Invoke(timeScaleSlider.value);
+		}
+		if (Input.GetKeyDown(KeyCode.LeftArrow)) {
+			timeDirection = -1;
+			timeScaleSlider.onValueChanged.Invoke(timeScaleSlider.value);
+		}
+		if (Input.GetKeyDown(KeyCode.RightArrow)) {
+			timeDirection = 1;
+			timeScaleSlider.onValueChanged.Invoke(timeScaleSlider.value);
+		}
+
+		if (submission != null) {
+			timeLabel.text = string.Format("Time (x{0:0}): {1:0}", timeScale, time);
+			timeSlider.value = time;
+			scoreLabel.text = submission.ScoreByTime(time).ToString("Score: 0");
+			time = Mathf.Clamp(time + Time.deltaTime * timeScale, 0, input.timeLimit);
+		}
 	}
 
 	// Update is called once per frame
@@ -204,8 +236,6 @@ public class Visualizer : MonoBehaviour {
 
 		public InputData (string data) {
 			var words = data.Split(new char[0], System.StringSplitOptions.RemoveEmptyEntries);
-			//var floats = words.Select(w => float.Parse(w));
-			//var ints = words.Select(w => int.Parse(w));
 			int wordIndex = 0;
 			System.Func<int> nextInt = () => int.Parse(words[wordIndex++]);
 			System.Func<float> nextFloat = () => float.Parse(words[wordIndex++]);

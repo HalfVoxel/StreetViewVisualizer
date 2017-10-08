@@ -231,6 +231,7 @@ namespace Pathfinding.Util {
 		Stack<Mesh> cachedMeshes = new Stack<Mesh>();
 
 		void PoolMesh (Mesh mesh) {
+			return;
 			mesh.Clear();
 			cachedMeshes.Push(mesh);
 		}
