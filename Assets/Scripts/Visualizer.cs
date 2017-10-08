@@ -17,6 +17,10 @@ public class Visualizer : MonoBehaviour {
 	public Slider timeScaleSlider;
 	public Text timeLabel;
 	public Text scoreLabel;
+	public InputField inputPath;
+	public InputField submissionPath;
+	public Button loadButton;
+	public Text debugOutput;
 	int timeDirection = 1;
 	bool paused = false;
 	RetainedGizmos gizmos;
@@ -28,6 +32,9 @@ public class Visualizer : MonoBehaviour {
 
 	// Use this for initialization
 	void Start () {
+		inputPath.text = "../tests/campus.txt";
+		submissionPath.text = "../solution.sol";
+
 		gizmos = new RetainedGizmos();
 		gizmos.lineMaterial = lineMaterial;
 		gizmos.surfaceMaterial = surfaceMaterial;
@@ -42,22 +49,43 @@ public class Visualizer : MonoBehaviour {
 		timeScaleSlider.onValueChanged.AddListener(v => timeScale = paused ? 0 : (int)(timeDirection*Mathf.Pow(10, v)));
 		timeScaleSlider.value = 2;
 
+		loadButton.onClick.AddListener(() => Load(inputPath.text, submissionPath.text));
 		canvas = FindObjectOfType<Canvas>();
 		cam = GetComponent<Camera>();
-		Load();
+		Load(inputPath.text, submissionPath.text);
 	}
 
-	void Load () {
-		input = new InputData(File.OpenText(Application.dataPath + "/../tests/campus.txt").ReadToEnd());
-		submission = new SubmissionData(input, File.OpenText(Application.dataPath + "/../test2.sub").ReadToEnd());
-		timeSlider.maxValue = input.timeLimit;
-		//submission = new SubmissionData(input, GenerateRandomWalk(input));
-		Debug.Log("Score: " + submission.score);
-		Debug.Log("Maximum possible score: " + MaximumPossibleScore(input));
-		Debug.Log("Maximum possible continous score: " + MaximumPossibleContinousScore(input));
-		Debug.Log("Optimal time fraction to cover: " + OptimalTimeToCover(input));
-		cam.transform.position = input.bounds.center - Vector3.forward;
-		cam.orthographicSize = input.bounds.extents.magnitude * 1.1f;
+	void Load (string relativeInputPath, string relativeSolutionPath) {
+		string inputData, submissionData;
+		var cols = loadButton.colors;
+		debugOutput.text = "";
+		try {
+			inputData = File.OpenText(Application.dataPath + "/" + relativeInputPath).ReadToEnd();
+			submissionData = File.OpenText(Application.dataPath + "/" + relativeSolutionPath).ReadToEnd();
+			cols.normalColor = Color.white;
+			loadButton.colors = cols;
+		} catch (System.Exception e) {
+			Debug.LogException(e);
+			cols.normalColor = Color.red;
+			loadButton.colors = cols;
+			debugOutput.text = e.Message;
+			return;
+		}
+
+		try {
+			input = new InputData(inputData);
+			submission = new SubmissionData(input, submissionData);
+			timeSlider.maxValue = input.timeLimit;
+			//submission = new SubmissionData(input, GenerateRandomWalk(input));
+			Debug.Log("Score: " + submission.score);
+			Debug.Log("Maximum possible score: " + MaximumPossibleScore(input));
+			Debug.Log("Maximum possible continous score: " + MaximumPossibleContinousScore(input));
+			Debug.Log("Optimal time fraction to cover: " + OptimalTimeToCover(input));
+			cam.transform.position = input.bounds.center - Vector3.forward;
+			cam.orthographicSize = input.bounds.extents.magnitude * 1.1f;
+		} catch (System.Exception e) {
+			debugOutput.text = e.Message;
+		}
 	}
 
 	static float MaximumPossibleContinousScore (InputData input) {
@@ -103,7 +131,7 @@ public class Visualizer : MonoBehaviour {
 
 	void Update () {
 		if (Input.GetKeyDown(KeyCode.R)) {
-			Load();
+			Load(inputPath.text, submissionPath.text);
 		}
 
 		if (Input.GetKeyDown(KeyCode.Space)) {
