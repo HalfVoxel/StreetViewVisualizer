@@ -32,7 +32,7 @@ public class Visualizer : MonoBehaviour {
 
 	// Use this for initialization
 	void Start () {
-		inputPath.text = "../tests/campus.txt";
+		inputPath.text = "../tests/paris.txt";
 		submissionPath.text = "../solution.sol";
 
 		gizmos = new RetainedGizmos();
@@ -61,7 +61,6 @@ public class Visualizer : MonoBehaviour {
 		debugOutput.text = "";
 		try {
 			inputData = File.OpenText(Application.dataPath + "/" + relativeInputPath).ReadToEnd();
-			submissionData = File.OpenText(Application.dataPath + "/" + relativeSolutionPath).ReadToEnd();
 			cols.normalColor = Color.white;
 			loadButton.colors = cols;
 		} catch (System.Exception e) {
@@ -74,18 +73,31 @@ public class Visualizer : MonoBehaviour {
 
 		try {
 			input = new InputData(inputData);
-			submission = new SubmissionData(input, submissionData);
 			timeSlider.maxValue = input.timeLimit;
 			//submission = new SubmissionData(input, GenerateRandomWalk(input));
-			Debug.Log("Score: " + submission.score);
-			Debug.Log("Maximum possible score: " + MaximumPossibleScore(input));
-			Debug.Log("Maximum possible continous score: " + MaximumPossibleContinousScore(input));
-			Debug.Log("Optimal time fraction to cover: " + OptimalTimeToCover(input));
 			cam.transform.position = input.bounds.center - Vector3.forward;
 			cam.orthographicSize = input.bounds.extents.magnitude * 1.1f;
 		} catch (System.Exception e) {
 			debugOutput.text = e.Message;
+			return;
 		}
+
+		try {
+			submissionData = File.OpenText(Application.dataPath + "/" + relativeSolutionPath).ReadToEnd();
+			submission = new SubmissionData(input, submissionData);
+			Debug.Log("Score: " + submission.score);
+			Debug.Log("Maximum possible score: " + MaximumPossibleScore(input));
+			Debug.Log("Maximum possible continous score: " + MaximumPossibleContinousScore(input));
+			Debug.Log("Optimal time fraction to cover: " + OptimalTimeToCover(input));
+			submissionData = File.OpenText(Application.dataPath + "/" + relativeSolutionPath).ReadToEnd();
+		} catch (System.Exception e) {
+			Debug.LogException(e);
+			cols.normalColor = Color.red;
+			loadButton.colors = cols;
+			debugOutput.text = e.Message;
+			return;
+		}
+
 	}
 
 	static float MaximumPossibleContinousScore (InputData input) {
@@ -176,15 +188,26 @@ public class Visualizer : MonoBehaviour {
 	}
 
 	void RenderBackground () {
-		var hasher = new RetainedGizmos.Hasher();
-		hasher.AddHash(input.GetHashCode());
-		if (!gizmos.Draw(hasher)) {
-			Debug.Log("Redrawing background");
-			var builder = new RetainedGizmos.Builder();
-			foreach (var street in input.streets) {
-				builder.DrawLine(input.junctions[street.from], input.junctions[street.to], Color.white);
+		if (input != null) {
+			var hasher = new RetainedGizmos.Hasher();
+			hasher.AddHash(input.GetHashCode());
+			if (!gizmos.Draw(hasher)) {
+				Debug.Log("Redrawing background");
+				var builder = new RetainedGizmos.Builder();
+				foreach (var street in input.streets) {
+					builder.DrawLine(input.junctions[street.from], input.junctions[street.to], Color.white);
+					if (street.oneWay) {
+						Vector2 dir = input.junctions[street.to] - input.junctions[street.from];
+						var length = dir.magnitude;
+						var cross = new Vector2(-dir.y, dir.x);
+						cross *= 0.08f;
+						dir *= 0.08f;
+						builder.DrawLine(input.junctions[street.to], input.junctions[street.to] - dir - cross, Color.white);
+						builder.DrawLine(input.junctions[street.to], input.junctions[street.to] - dir + cross, Color.white);
+					}
+				}
+				builder.Submit(gizmos, hasher);
 			}
-			builder.Submit(gizmos, hasher);
 		}
 	}
 
@@ -211,6 +234,12 @@ public class Visualizer : MonoBehaviour {
 				builder.DrawCircle((Vector3)currentPos + Vector3.forward*0.1f, 0.004f, Color.red);
 				builder.DrawCircle((Vector3)currentPos + Vector3.forward*0.1f, 0.003f, Color.red);
 				builder.DrawCircle((Vector3)currentPos + Vector3.forward*0.1f, 0.002f, Color.red);
+			}
+
+			for (int i = 0; i < submission.lines.Count; i++) {
+				var line = submission.lines[i];
+				var offset = Vector3.forward * 0.1f;
+				builder.DrawLine((Vector3)input.junctions[line.junction1] + offset, (Vector3)input.junctions[line.junction2] + offset, line.color);
 			}
 
 			var rect = GetScreenCoordinates(timeSlider.GetComponent<RectTransform>());
@@ -335,6 +364,8 @@ public class Visualizer : MonoBehaviour {
 
 				cumulativeTimes[i] = cumulativeTimes[i-1] + street.duration;
 			}
+			if (cumulativeTimes[cumulativeTimes.Length-1] > task.timeLimit) throw new System.Exception("Time!");
+			if (NextPathIndex(task.timeLimit) < path.Length-1) throw new System.Exception(NextPathIndex(task.timeLimit) + " != " + path.Length);
 		}
 
 		public int NextPathIndex (float time) {
@@ -354,11 +385,17 @@ public class Visualizer : MonoBehaviour {
 		}
 	}
 
+	class DebugLine {
+		public int junction1, junction2;
+		public Color color = Color.red;
+	}
+
 	class SubmissionData {
 		InputData task;
 		public CarPath[] cars;
 		public int score;
 		public KeyValuePair<int, int>[] cumulativeScore;
+		public List<DebugLine> lines = new List<DebugLine>();
 
 		public float ScoreByTime (float time) {
 			if (time < cumulativeScore[0].Key) return cumulativeScore[0].Value;
@@ -372,6 +409,9 @@ public class Visualizer : MonoBehaviour {
 		}
 
 		public SubmissionData (InputData task, string data) {
+			var debug = string.Join("\n", data.Split('\n').Where(l => l.StartsWith("DEBUG:")).ToArray());
+			data = string.Join("\n", data.Split('\n').Where(l => !l.StartsWith("DEBUG:")).ToArray());
+			ParseDebug(debug);
 			this.task = task;
 
 			var words = data.Split(new char[0], System.StringSplitOptions.RemoveEmptyEntries);
@@ -388,6 +428,22 @@ public class Visualizer : MonoBehaviour {
 			}
 
 			CalculateScore();
+		}
+
+		void ParseDebug (string data) {
+			foreach (var line in data.Split('\n')) {
+				var splits = line.Split(' ');
+				if (splits[0] == "DEBUG:LINE") {
+					int type = int.Parse(splits[1]);
+					if (type == 0) {
+						lines.Add(new DebugLine {
+							junction1 = int.Parse(splits[2]),
+							junction2 = int.Parse(splits[3]),
+							color = Color.red
+						});
+					}
+				}
+			}
 		}
 
 		void CalculateScore () {
@@ -414,6 +470,12 @@ public class Visualizer : MonoBehaviour {
 			for (int i = 0; i < coveredTimes.Length; i++) {
 				if (coveredTimes[i] < int.MaxValue) {
 					scoreDeltas.Add(new KeyValuePair<int, int>(coveredTimes[i], task.streets[i].length));
+				} else {
+					/*lines.Add(new DebugLine {
+						junction1 = task.streets[i].from,
+						junction2 = task.streets[i].to,
+						color = Color.blue
+					});*/
 				}
 			}
 

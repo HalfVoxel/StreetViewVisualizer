@@ -68,7 +68,7 @@ namespace Pathfinding.Util {
 				mesh.colors = colors;
 
 				// Upload all data and mark the mesh as unreadable
-				mesh.UploadMeshData(true);
+				mesh.UploadMeshData(false);
 				meshes.Add(mesh);
 			}
 
@@ -231,6 +231,7 @@ namespace Pathfinding.Util {
 		Stack<Mesh> cachedMeshes = new Stack<Mesh>();
 
 		void PoolMesh (Mesh mesh) {
+			Mesh.Destroy(mesh);
 			return;
 			mesh.Clear();
 			cachedMeshes.Push(mesh);
